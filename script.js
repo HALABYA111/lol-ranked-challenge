@@ -1,3 +1,5 @@
+const BACKEND_URL = "https://lol-ranked-backend-production.up.railway.app";
+
 const ranks = [
   "Iron", "Bronze", "Silver", "Gold",
   "Platinum", "Emerald", "Diamond",
@@ -48,7 +50,7 @@ function login() {
     document.getElementById("loginBox").classList.add("hidden");
     document.getElementById("adminPanel").classList.remove("hidden");
     fillSelects();
-    loadAdminTable(); // ✅ explicitly reload from localStorage
+    loadAdminTable();
   } else {
     alert("Wrong login");
   }
@@ -79,17 +81,27 @@ function rankToPoints(rank, division, lp) {
 }
 
 /* ===============================
-   FETCH FROM API
+   LOAD ACCOUNTS FROM BACKEND
+================================ */
+
+async function fetchAccountsFromBackend() {
+  const res = await fetch(`${BACKEND_URL}/accounts`);
+  const json = await res.json();
+  return json.data || [];
+}
+
+/* ===============================
+   FETCH RANKS FROM API
 ================================ */
 
 async function fetchLeaderboardFromAPI() {
-  const data = JSON.parse(localStorage.getItem("leaderboard")) || [];
+  const accounts = await fetchAccountsFromBackend();
 
   cachedLeaderboardData = await Promise.all(
-    data.map(async acc => {
+    accounts.map(async acc => {
       try {
         const res = await fetch(
-          `https://lol-ranked-backend-production.up.railway.app/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
+          `${BACKEND_URL}/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
         );
         const r = await res.json();
 
@@ -99,7 +111,6 @@ async function fetchLeaderboardFromAPI() {
           acc.peakLP
         );
 
-        // UNRANKED
         if (!r.ranked) {
           return {
             ...acc,
@@ -110,43 +121,18 @@ async function fetchLeaderboardFromAPI() {
           };
         }
 
-        // ✅ STRICT TIER → ICON MAP (case-safe)
-        const tierMap = {
-          IRON: "iron",
-          BRONZE: "bronze",
-          SILVER: "silver",
-          GOLD: "gold",
-          PLATINUM: "platinum",
-          EMERALD: "emerald",
-          DIAMOND: "diamond",
-          MASTER: "master",
-          GRANDMASTER: "grandmaster",
-          CHALLENGER: "challenger"
-        };
-
-        const tierKey = tierMap[r.tier];
-
-        // Safety fallback
-        if (!tierKey) {
-          return {
-            ...acc,
-            tierIcon: "unranked",
-            displayRank: "Unranked",
-            currentPoints: 0,
-            points: -peakPoints
-          };
-        }
+        const normalizedTier = r.tier.toLowerCase();
 
         const currentPoints = rankToPoints(
-          tierKey.charAt(0).toUpperCase() + tierKey.slice(1),
+          r.tier.charAt(0) + r.tier.slice(1).toLowerCase(),
           r.rank || "",
           r.lp
         );
 
         return {
           ...acc,
-          tierIcon: tierKey,
-          displayRank: `${tierKey.toUpperCase()} ${r.rank || ""} ${r.lp} LP`,
+          tierIcon: normalizedTier,
+          displayRank: `${r.tier.charAt(0) + r.tier.slice(1).toLowerCase()} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
         };
@@ -171,7 +157,6 @@ async function fetchLeaderboardFromAPI() {
   return cachedLeaderboardData;
 }
 
-
 /* ===============================
    RENDER LEADERBOARD
 ================================ */
@@ -186,8 +171,7 @@ function renderLeaderboard(data) {
     const riotName = acc.riotId.replace("#", "-");
     const server = acc.server.toLowerCase();
     const uggServer = server === "euw" ? "euw1" : "eun1";
-
-    const iconSrc = `images/${acc.tierIcon.toLowerCase()}.png`;
+    const iconSrc = `images/${acc.tierIcon}.png`;
 
     const row = document.createElement("tr");
     row.innerHTML = `
@@ -195,7 +179,7 @@ function renderLeaderboard(data) {
       <td>${acc.riotId}</td>
       <td>${acc.server.toUpperCase()}</td>
       <td class="rank-cell">
-        <img src="${iconSrc}" alt="${acc.tierIcon}" class="rank-icon">
+        <img src="${iconSrc}" class="rank-icon">
         ${acc.displayRank}
       </td>
       <td>${acc.points}</td>
@@ -309,61 +293,49 @@ function setActiveColumn(col) {
 }
 
 /* ===============================
-   ADMIN TABLE (FIXED)
+   ADMIN → BACKEND SAVE
 ================================ */
 
-function addAccount() {
-  const data = JSON.parse(localStorage.getItem("leaderboard")) || [];
-
-  data.push({
+async function addAccount() {
+  const payload = {
     player: document.getElementById("playerName").value,
     riotId: document.getElementById("riotId").value,
     server: document.getElementById("server").value,
     peakRank: document.getElementById("peakRank").value,
     peakDivision: document.getElementById("peakDivision").value,
     peakLP: document.getElementById("peakLP").value
+  };
+
+  await fetch(`${BACKEND_URL}/accounts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
 
-  localStorage.setItem("leaderboard", JSON.stringify(data));
   loadAdminTable();
+  fetchLeaderboardFromAPI().then(sortByRankAll);
 }
 
-function deleteAccount(index) {
-  const data = JSON.parse(localStorage.getItem("leaderboard")) || [];
-  data.splice(index, 1);
-  localStorage.setItem("leaderboard", JSON.stringify(data));
-  loadAdminTable();
-}
+/* ===============================
+   ADMIN TABLE
+================================ */
 
-function deletePlayer(playerName) {
-  let data = JSON.parse(localStorage.getItem("leaderboard")) || [];
-  data = data.filter(acc => acc.player !== playerName);
-  localStorage.setItem("leaderboard", JSON.stringify(data));
-  loadAdminTable();
-}
-
-function loadAdminTable() {
+async function loadAdminTable() {
   const body = document.getElementById("adminTableBody");
   if (!body) return;
 
-  const data = JSON.parse(localStorage.getItem("leaderboard")) || [];
+  const accounts = await fetchAccountsFromBackend();
   body.innerHTML = "";
 
-  data.forEach((acc, index) => {
+  accounts.forEach(acc => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${acc.player}</td>
       <td>${acc.riotId}</td>
       <td>${acc.server.toUpperCase()}</td>
       <td>${acc.peakRank} ${acc.peakDivision} ${acc.peakLP} LP</td>
-      <td>
-        <button class="delete" onclick="deleteAccount(${index})">Delete Account</button>
-        <button class="delete" onclick="deletePlayer('${acc.player}')">Delete Player</button>
-      </td>
+      <td>Stored</td>
     `;
     body.appendChild(row);
   });
 }
-
-
-
