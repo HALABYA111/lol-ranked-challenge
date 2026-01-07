@@ -89,7 +89,7 @@ async function fetchLeaderboardFromAPI() {
     data.map(async acc => {
       try {
         const res = await fetch(
-          `http://localhost:3000/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
+          `https://lol-ranked-backend-production.up.railway.app/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
         );
         const r = await res.json();
 
@@ -338,3 +338,4 @@ function loadAdminTable() {
     body.appendChild(row);
   });
 }
+
