@@ -7,63 +7,13 @@ const ranks = [
 const divisions = ["", "IV", "III", "II", "I"];
 
 /* ===============================
-   CONFIG
-================================ */
-
-const BACKEND_URL = "https://lol-ranked-backend-production.up.railway.app";
-
-/* ===============================
    GLOBAL CACHE
 ================================ */
-
 let cachedLeaderboardData = null;
 
 /* ===============================
-   ADMIN SELECTS
+   POINT SYSTEM
 ================================ */
-
-function fillSelects() {
-  ["peakRank"].forEach(id => {
-    const select = document.getElementById(id);
-    if (!select) return;
-    ranks.forEach(r => {
-      const o = document.createElement("option");
-      o.value = r;
-      o.textContent = r;
-      select.appendChild(o);
-    });
-  });
-
-  ["peakDivision"].forEach(id => {
-    const select = document.getElementById(id);
-    if (!select) return;
-    divisions.forEach(d => {
-      const o = document.createElement("option");
-      o.value = d;
-      o.textContent = d === "" ? "None" : d;
-      select.appendChild(o);
-    });
-  });
-}
-
-function login() {
-  if (
-    document.getElementById("username").value === "admin" &&
-    document.getElementById("password").value === "admin"
-  ) {
-    document.getElementById("loginBox").classList.add("hidden");
-    document.getElementById("adminPanel").classList.remove("hidden");
-    fillSelects();
-    loadAdminTable();
-  } else {
-    alert("Wrong login");
-  }
-}
-
-/* ===============================
-   POINT SYSTEM (UNCHANGED)
-================================ */
-
 function rankToPoints(rank, division, lp) {
   lp = Number(lp || 0);
   const tierIndex = ranks.indexOf(rank);
@@ -87,17 +37,28 @@ function rankToPoints(rank, division, lp) {
 /* ===============================
    FETCH ACCOUNTS FROM BACKEND
 ================================ */
-
 async function fetchAccounts() {
-  const res = await fetch(`${BACKEND_URL}/accounts`);
+  const res = await fetch(
+    "https://lol-ranked-backend-production.up.railway.app/accounts"
+  );
   const json = await res.json();
-  return json.data || [];
+
+  if (!json.success) return [];
+
+  // Normalize Supabase fields → frontend format
+  return json.data.map(acc => ({
+    player: acc.player,
+    riotId: acc.riotid,
+    server: acc.server,
+    peakRank: acc.peakrank,
+    peakDivision: acc.peakdivision,
+    peakLP: acc.peaklp
+  }));
 }
 
 /* ===============================
-   FETCH + RIOT API
+   FETCH RANKS (API ONCE)
 ================================ */
-
 async function fetchLeaderboardFromAPI() {
   const accounts = await fetchAccounts();
 
@@ -105,7 +66,7 @@ async function fetchLeaderboardFromAPI() {
     accounts.map(async acc => {
       try {
         const res = await fetch(
-          `${BACKEND_URL}/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
+          `https://lol-ranked-backend-production.up.railway.app/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
         );
         const r = await res.json();
 
@@ -127,8 +88,11 @@ async function fetchLeaderboardFromAPI() {
 
         const tier = r.tier.toLowerCase();
 
+        const normalizedTier =
+          tier.charAt(0).toUpperCase() + tier.slice(1);
+
         const currentPoints = rankToPoints(
-          r.tier.charAt(0) + r.tier.slice(1).toLowerCase(),
+          normalizedTier,
           r.rank || "",
           r.lp
         );
@@ -136,7 +100,7 @@ async function fetchLeaderboardFromAPI() {
         return {
           ...acc,
           tierIcon: tier,
-          displayRank: `${r.tier} ${r.rank || ""} ${r.lp} LP`,
+          displayRank: `${normalizedTier} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
         };
@@ -159,10 +123,10 @@ async function fetchLeaderboardFromAPI() {
 /* ===============================
    RENDER LEADERBOARD
 ================================ */
-
 function renderLeaderboard(data) {
   const body = document.getElementById("leaderboardBody");
   if (!body) return;
+
   body.innerHTML = "";
 
   data.forEach(acc => {
@@ -175,12 +139,24 @@ function renderLeaderboard(data) {
       <td>${acc.player}</td>
       <td>${acc.riotId}</td>
       <td>${acc.server.toUpperCase()}</td>
-      <td>${acc.displayRank}</td>
+      <td class="rank-cell">
+        <img src="images/${acc.tierIcon}.png" class="rank-icon">
+        ${acc.displayRank}
+      </td>
       <td>${acc.points}</td>
-      <td>
-        <a target="_blank" href="https://www.leagueofgraphs.com/summoner/${server}/${riotName}">League of Graphs</a> |
-        <a target="_blank" href="https://www.op.gg/summoners/${server}/${riotName}">OP.GG</a> |
-        <a target="_blank" href="https://u.gg/lol/profile/${uggServer}/${riotName}/overview">U.GG</a>
+      <td class="link-group">
+        <a class="link-btn" target="_blank"
+          href="https://www.leagueofgraphs.com/summoner/${server}/${riotName}">
+          LoG
+        </a>
+        <a class="link-btn" target="_blank"
+          href="https://www.op.gg/summoners/${server}/${riotName}">
+          OP.GG
+        </a>
+        <a class="link-btn" target="_blank"
+          href="https://u.gg/lol/profile/${uggServer}/${riotName}/overview">
+          U.GG
+        </a>
       </td>
     `;
     body.appendChild(row);
@@ -188,29 +164,40 @@ function renderLeaderboard(data) {
 }
 
 /* ===============================
-   SORTING
+   SORTING (NO API CALLS)
 ================================ */
-
 function sortByRankAll() {
   if (!cachedLeaderboardData) return;
-  renderLeaderboard([...cachedLeaderboardData].sort((a, b) => b.currentPoints - a.currentPoints));
+  renderLeaderboard(
+    [...cachedLeaderboardData].sort((a, b) => b.currentPoints - a.currentPoints)
+  );
 }
 
 function sortByPointsGrouped() {
   if (!cachedLeaderboardData) return;
+
   const best = {};
   cachedLeaderboardData.forEach(acc => {
     if (!best[acc.player] || acc.points > best[acc.player].points) {
       best[acc.player] = acc;
     }
   });
-  renderLeaderboard(Object.values(best).sort((a, b) => b.points - a.points));
+
+  renderLeaderboard(
+    Object.values(best).sort((a, b) => b.points - a.points)
+  );
+}
+
+function sortByServer() {
+  if (!cachedLeaderboardData) return;
+  renderLeaderboard(
+    [...cachedLeaderboardData].sort((a, b) => a.server.localeCompare(b.server))
+  );
 }
 
 /* ===============================
    INITIAL LOAD
 ================================ */
-
 if (document.getElementById("leaderboardBody")) {
   fetchLeaderboardFromAPI().then(sortByRankAll);
 }
@@ -218,44 +205,13 @@ if (document.getElementById("leaderboardBody")) {
 /* ===============================
    REFRESH
 ================================ */
-
 function refreshLeaderboard() {
   fetchLeaderboardFromAPI().then(sortByRankAll);
 }
 
 /* ===============================
-   ADMIN → ADD ACCOUNT (FIXED)
+   ADMIN
 ================================ */
-
-async function addAccount() {
-  const payload = {
-    player: document.getElementById("playerName").value,
-    riotId: document.getElementById("riotId").value,
-    server: document.getElementById("server").value,
-    peakRank: document.getElementById("peakRank").value,
-    peakDivision: document.getElementById("peakDivision").value,
-    peakLP: document.getElementById("peakLP").value
-  };
-
-  const res = await fetch(`${BACKEND_URL}/accounts`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    alert("Failed to add account");
-    return;
-  }
-
-  alert("Account added successfully");
-  loadAdminTable();
-}
-
-/* ===============================
-   ADMIN TABLE
-================================ */
-
 async function loadAdminTable() {
   const body = document.getElementById("adminTableBody");
   if (!body) return;
@@ -274,4 +230,46 @@ async function loadAdminTable() {
     `;
     body.appendChild(row);
   });
+}
+
+function login() {
+  if (
+    document.getElementById("username").value === "admin" &&
+    document.getElementById("password").value === "admin"
+  ) {
+    document.getElementById("loginBox").classList.add("hidden");
+    document.getElementById("adminPanel").classList.remove("hidden");
+    loadAdminTable();
+  } else {
+    alert("Wrong login");
+  }
+}
+
+async function addAccount() {
+  const payload = {
+    player: document.getElementById("playerName").value,
+    riotId: document.getElementById("riotId").value,
+    server: document.getElementById("server").value,
+    peakRank: document.getElementById("peakRank").value,
+    peakDivision: document.getElementById("peakDivision").value,
+    peakLP: Number(document.getElementById("peakLP").value || 0)
+  };
+
+  const res = await fetch(
+    "https://lol-ranked-backend-production.up.railway.app/accounts",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }
+  );
+
+  const json = await res.json();
+
+  if (!json.success) {
+    alert("Failed to add account");
+    return;
+  }
+
+  loadAdminTable();
 }
