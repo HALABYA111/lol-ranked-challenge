@@ -19,6 +19,17 @@ let cachedLeaderboardData = null;
 const BACKEND_URL = "https://lol-ranked-backend-production.up.railway.app";
 
 /* ===============================
+   FETCH ACCOUNTS (BACKEND)
+================================ */
+
+async function fetchAccountsFromBackend() {
+  const res = await fetch(`${BACKEND_URL}/accounts`);
+  const json = await res.json();
+  if (!json.success) return [];
+  return json.data;
+}
+
+/* ===============================
    ADMIN SELECTS
 ================================ */
 
@@ -85,24 +96,14 @@ function rankToPoints(rank, division, lp) {
 }
 
 /* ===============================
-   FETCH ACCOUNTS FROM BACKEND
-================================ */
-
-async function fetchAccounts() {
-  const res = await fetch(`${BACKEND_URL}/accounts`);
-  const json = await res.json();
-  return json.data || [];
-}
-
-/* ===============================
-   FETCH RANKS + BUILD DATA
+   FETCH RANKS FROM RIOT API
 ================================ */
 
 async function fetchLeaderboardFromAPI() {
-  const accounts = await fetchAccounts();
+  const data = await fetchAccountsFromBackend();
 
   cachedLeaderboardData = await Promise.all(
-    accounts.map(async acc => {
+    data.map(async acc => {
       try {
         const res = await fetch(
           `${BACKEND_URL}/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
@@ -128,7 +129,7 @@ async function fetchLeaderboardFromAPI() {
         const normalizedTier = r.tier.toLowerCase();
 
         const currentPoints = rankToPoints(
-          r.tier.charAt(0) + r.tier.slice(1).toLowerCase(),
+          normalizedTier.charAt(0).toUpperCase() + normalizedTier.slice(1),
           r.rank || "",
           r.lp
         );
@@ -136,7 +137,7 @@ async function fetchLeaderboardFromAPI() {
         return {
           ...acc,
           tierIcon: normalizedTier,
-          displayRank: `${r.tier} ${r.rank || ""} ${r.lp} LP`,
+          displayRank: `${normalizedTier.charAt(0).toUpperCase() + normalizedTier.slice(1)} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
         };
@@ -189,18 +190,9 @@ function renderLeaderboard(data) {
       </td>
       <td>${acc.points}</td>
       <td class="link-group">
-        <a class="link-btn" target="_blank"
-          href="https://www.leagueofgraphs.com/summoner/${server}/${riotName}">
-          League of Graphs
-        </a>
-        <a class="link-btn" target="_blank"
-          href="https://www.op.gg/summoners/${server}/${riotName}">
-          OP.GG
-        </a>
-        <a class="link-btn" target="_blank"
-          href="https://u.gg/lol/profile/${uggServer}/${riotName}/overview">
-          U.GG
-        </a>
+        <a class="link-btn" target="_blank" href="https://www.leagueofgraphs.com/summoner/${server}/${riotName}">League of Graphs</a>
+        <a class="link-btn" target="_blank" href="https://www.op.gg/summoners/${server}/${riotName}">OP.GG</a>
+        <a class="link-btn" target="_blank" href="https://u.gg/lol/profile/${uggServer}/${riotName}/overview">U.GG</a>
       </td>
     `;
     body.appendChild(row);
@@ -212,13 +204,14 @@ function renderLeaderboard(data) {
 ================================ */
 
 function sortByRankAll() {
-  renderLeaderboard(
-    [...cachedLeaderboardData].sort((a, b) => b.currentPoints - a.currentPoints)
-  );
+  if (!cachedLeaderboardData) return;
+  renderLeaderboard([...cachedLeaderboardData].sort((a, b) => b.currentPoints - a.currentPoints));
   setActiveColumn("rank");
 }
 
 function sortByPointsGrouped() {
+  if (!cachedLeaderboardData) return;
+
   const best = {};
   cachedLeaderboardData.forEach(acc => {
     if (!best[acc.player] || acc.points > best[acc.player].points) {
@@ -226,13 +219,13 @@ function sortByPointsGrouped() {
     }
   });
 
-  renderLeaderboard(
-    Object.values(best).sort((a, b) => b.points - a.points)
-  );
+  renderLeaderboard(Object.values(best).sort((a, b) => b.points - a.points));
   setActiveColumn("points");
 }
 
 function sortByServer() {
+  if (!cachedLeaderboardData) return;
+
   renderLeaderboard(
     [...cachedLeaderboardData]
       .sort((a, b) => b.currentPoints - a.currentPoints)
@@ -265,7 +258,7 @@ if (document.getElementById("leaderboardBody")) {
 }
 
 /* ===============================
-   REFRESH
+   REFRESH BUTTON
 ================================ */
 
 function refreshLeaderboard() {
@@ -273,7 +266,27 @@ function refreshLeaderboard() {
 }
 
 /* ===============================
-   ADMIN → SAVE TO BACKEND
+   VISUAL SORT INDICATOR
+================================ */
+
+function setActiveColumn(col) {
+  document.querySelectorAll("th").forEach(th => th.classList.remove("active-sort"));
+  document.querySelectorAll("td").forEach(td => td.classList.remove("active-col"));
+
+  const header = document.querySelector(`th[data-col="${col}"]`);
+  if (!header) return;
+
+  header.classList.add("active-sort");
+  const colIndex = Array.from(header.parentNode.children).indexOf(header);
+
+  document.querySelectorAll("#leaderboardBody tr").forEach(row => {
+    const cell = row.children[colIndex];
+    if (cell) cell.classList.add("active-col");
+  });
+}
+
+/* ===============================
+   ADMIN → BACKEND
 ================================ */
 
 async function addAccount() {
@@ -286,35 +299,40 @@ async function addAccount() {
     peakLP: document.getElementById("peakLP").value
   };
 
-  await fetch(`${BACKEND_URL}/accounts`, {
+  const res = await fetch(`${BACKEND_URL}/accounts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
 
-  alert("Account added!");
-  loadAdminTable();
-}
+  const json = await res.json();
 
-/* ===============================
-   ADMIN TABLE
-================================ */
+  if (json.success) {
+    refreshLeaderboard();
+    loadAdminTable();
+  } else {
+    alert("Failed to add account");
+  }
+}
 
 async function loadAdminTable() {
   const body = document.getElementById("adminTableBody");
   if (!body) return;
 
-  const accounts = await fetchAccounts();
+  const data = await fetchAccountsFromBackend();
   body.innerHTML = "";
 
-  accounts.forEach((acc, index) => {
+  data.forEach((acc, index) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${acc.player}</td>
       <td>${acc.riotId}</td>
       <td>${acc.server.toUpperCase()}</td>
       <td>${acc.peakRank} ${acc.peakDivision} ${acc.peakLP} LP</td>
-      <td>—</td>
+      <td>
+        <button class="delete" onclick="deleteAccount(${index})">Delete Account</button>
+        <button class="delete" onclick="deletePlayer('${acc.player}')">Delete Player</button>
+      </td>
     `;
     body.appendChild(row);
   });
