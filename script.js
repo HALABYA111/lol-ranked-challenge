@@ -1,5 +1,3 @@
-const BACKEND_URL = "https://lol-ranked-backend-production.up.railway.app";
-
 const ranks = [
   "Iron", "Bronze", "Silver", "Gold",
   "Platinum", "Emerald", "Diamond",
@@ -13,6 +11,12 @@ const divisions = ["", "IV", "III", "II", "I"];
 ================================ */
 
 let cachedLeaderboardData = null;
+
+/* ===============================
+   BACKEND URL
+================================ */
+
+const BACKEND_URL = "https://lol-ranked-backend-production.up.railway.app";
 
 /* ===============================
    ADMIN SELECTS
@@ -57,7 +61,7 @@ function login() {
 }
 
 /* ===============================
-   POINT SYSTEM
+   POINT SYSTEM (UNCHANGED)
 ================================ */
 
 function rankToPoints(rank, division, lp) {
@@ -81,21 +85,21 @@ function rankToPoints(rank, division, lp) {
 }
 
 /* ===============================
-   LOAD ACCOUNTS FROM BACKEND
+   FETCH ACCOUNTS FROM BACKEND
 ================================ */
 
-async function fetchAccountsFromBackend() {
+async function fetchAccounts() {
   const res = await fetch(`${BACKEND_URL}/accounts`);
   const json = await res.json();
   return json.data || [];
 }
 
 /* ===============================
-   FETCH RANKS FROM API
+   FETCH RANKS + BUILD DATA
 ================================ */
 
 async function fetchLeaderboardFromAPI() {
-  const accounts = await fetchAccountsFromBackend();
+  const accounts = await fetchAccounts();
 
   cachedLeaderboardData = await Promise.all(
     accounts.map(async acc => {
@@ -132,7 +136,7 @@ async function fetchLeaderboardFromAPI() {
         return {
           ...acc,
           tierIcon: normalizedTier,
-          displayRank: `${r.tier.charAt(0) + r.tier.slice(1).toLowerCase()} ${r.rank || ""} ${r.lp} LP`,
+          displayRank: `${r.tier} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
         };
@@ -171,6 +175,7 @@ function renderLeaderboard(data) {
     const riotName = acc.riotId.replace("#", "-");
     const server = acc.server.toLowerCase();
     const uggServer = server === "euw" ? "euw1" : "eun1";
+
     const iconSrc = `images/${acc.tierIcon}.png`;
 
     const row = document.createElement("tr");
@@ -207,7 +212,6 @@ function renderLeaderboard(data) {
 ================================ */
 
 function sortByRankAll() {
-  if (!cachedLeaderboardData) return;
   renderLeaderboard(
     [...cachedLeaderboardData].sort((a, b) => b.currentPoints - a.currentPoints)
   );
@@ -215,8 +219,6 @@ function sortByRankAll() {
 }
 
 function sortByPointsGrouped() {
-  if (!cachedLeaderboardData) return;
-
   const best = {};
   cachedLeaderboardData.forEach(acc => {
     if (!best[acc.player] || acc.points > best[acc.player].points) {
@@ -231,8 +233,6 @@ function sortByPointsGrouped() {
 }
 
 function sortByServer() {
-  if (!cachedLeaderboardData) return;
-
   renderLeaderboard(
     [...cachedLeaderboardData]
       .sort((a, b) => b.currentPoints - a.currentPoints)
@@ -273,27 +273,7 @@ function refreshLeaderboard() {
 }
 
 /* ===============================
-   VISUAL SORT INDICATOR
-================================ */
-
-function setActiveColumn(col) {
-  document.querySelectorAll("th").forEach(th => th.classList.remove("active-sort"));
-  document.querySelectorAll("td").forEach(td => td.classList.remove("active-col"));
-
-  const header = document.querySelector(`th[data-col="${col}"]`);
-  if (!header) return;
-
-  header.classList.add("active-sort");
-  const colIndex = Array.from(header.parentNode.children).indexOf(header);
-
-  document.querySelectorAll("#leaderboardBody tr").forEach(row => {
-    const cell = row.children[colIndex];
-    if (cell) cell.classList.add("active-col");
-  });
-}
-
-/* ===============================
-   ADMIN → BACKEND SAVE
+   ADMIN → SAVE TO BACKEND
 ================================ */
 
 async function addAccount() {
@@ -312,8 +292,8 @@ async function addAccount() {
     body: JSON.stringify(payload)
   });
 
+  alert("Account added!");
   loadAdminTable();
-  fetchLeaderboardFromAPI().then(sortByRankAll);
 }
 
 /* ===============================
@@ -324,17 +304,17 @@ async function loadAdminTable() {
   const body = document.getElementById("adminTableBody");
   if (!body) return;
 
-  const accounts = await fetchAccountsFromBackend();
+  const accounts = await fetchAccounts();
   body.innerHTML = "";
 
-  accounts.forEach(acc => {
+  accounts.forEach((acc, index) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${acc.player}</td>
       <td>${acc.riotId}</td>
       <td>${acc.server.toUpperCase()}</td>
       <td>${acc.peakRank} ${acc.peakDivision} ${acc.peakLP} LP</td>
-      <td>Stored</td>
+      <td>—</td>
     `;
     body.appendChild(row);
   });
