@@ -7,27 +7,16 @@ const ranks = [
 const divisions = ["", "IV", "III", "II", "I"];
 
 /* ===============================
-   GLOBAL CACHE
-================================ */
-
-let cachedLeaderboardData = null;
-
-/* ===============================
-   BACKEND URL
+   CONFIG
 ================================ */
 
 const BACKEND_URL = "https://lol-ranked-backend-production.up.railway.app";
 
 /* ===============================
-   FETCH ACCOUNTS (BACKEND)
+   GLOBAL CACHE
 ================================ */
 
-async function fetchAccountsFromBackend() {
-  const res = await fetch(`${BACKEND_URL}/accounts`);
-  const json = await res.json();
-  if (!json.success) return [];
-  return json.data;
-}
+let cachedLeaderboardData = null;
 
 /* ===============================
    ADMIN SELECTS
@@ -96,14 +85,24 @@ function rankToPoints(rank, division, lp) {
 }
 
 /* ===============================
-   FETCH RANKS FROM RIOT API
+   FETCH ACCOUNTS FROM BACKEND
+================================ */
+
+async function fetchAccounts() {
+  const res = await fetch(`${BACKEND_URL}/accounts`);
+  const json = await res.json();
+  return json.data || [];
+}
+
+/* ===============================
+   FETCH + RIOT API
 ================================ */
 
 async function fetchLeaderboardFromAPI() {
-  const data = await fetchAccountsFromBackend();
+  const accounts = await fetchAccounts();
 
   cachedLeaderboardData = await Promise.all(
-    data.map(async acc => {
+    accounts.map(async acc => {
       try {
         const res = await fetch(
           `${BACKEND_URL}/rank?riotId=${encodeURIComponent(acc.riotId)}&server=${acc.server}`
@@ -126,34 +125,29 @@ async function fetchLeaderboardFromAPI() {
           };
         }
 
-        const normalizedTier = r.tier.toLowerCase();
+        const tier = r.tier.toLowerCase();
 
         const currentPoints = rankToPoints(
-          normalizedTier.charAt(0).toUpperCase() + normalizedTier.slice(1),
+          r.tier.charAt(0) + r.tier.slice(1).toLowerCase(),
           r.rank || "",
           r.lp
         );
 
         return {
           ...acc,
-          tierIcon: normalizedTier,
-          displayRank: `${normalizedTier.charAt(0).toUpperCase() + normalizedTier.slice(1)} ${r.rank || ""} ${r.lp} LP`,
+          tierIcon: tier,
+          displayRank: `${r.tier} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
         };
 
       } catch {
-        const peakPoints = rankToPoints(
-          acc.peakRank,
-          acc.peakDivision,
-          acc.peakLP
-        );
         return {
           ...acc,
           tierIcon: "unranked",
           displayRank: "Invalid",
           currentPoints: 0,
-          points: -peakPoints
+          points: 0
         };
       }
     })
@@ -169,7 +163,6 @@ async function fetchLeaderboardFromAPI() {
 function renderLeaderboard(data) {
   const body = document.getElementById("leaderboardBody");
   if (!body) return;
-
   body.innerHTML = "";
 
   data.forEach(acc => {
@@ -177,22 +170,17 @@ function renderLeaderboard(data) {
     const server = acc.server.toLowerCase();
     const uggServer = server === "euw" ? "euw1" : "eun1";
 
-    const iconSrc = `images/${acc.tierIcon}.png`;
-
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${acc.player}</td>
       <td>${acc.riotId}</td>
       <td>${acc.server.toUpperCase()}</td>
-      <td class="rank-cell">
-        <img src="${iconSrc}" class="rank-icon">
-        ${acc.displayRank}
-      </td>
+      <td>${acc.displayRank}</td>
       <td>${acc.points}</td>
-      <td class="link-group">
-        <a class="link-btn" target="_blank" href="https://www.leagueofgraphs.com/summoner/${server}/${riotName}">League of Graphs</a>
-        <a class="link-btn" target="_blank" href="https://www.op.gg/summoners/${server}/${riotName}">OP.GG</a>
-        <a class="link-btn" target="_blank" href="https://u.gg/lol/profile/${uggServer}/${riotName}/overview">U.GG</a>
+      <td>
+        <a target="_blank" href="https://www.leagueofgraphs.com/summoner/${server}/${riotName}">League of Graphs</a> |
+        <a target="_blank" href="https://www.op.gg/summoners/${server}/${riotName}">OP.GG</a> |
+        <a target="_blank" href="https://u.gg/lol/profile/${uggServer}/${riotName}/overview">U.GG</a>
       </td>
     `;
     body.appendChild(row);
@@ -200,54 +188,24 @@ function renderLeaderboard(data) {
 }
 
 /* ===============================
-   SORTING (NO API CALLS)
+   SORTING
 ================================ */
 
 function sortByRankAll() {
   if (!cachedLeaderboardData) return;
   renderLeaderboard([...cachedLeaderboardData].sort((a, b) => b.currentPoints - a.currentPoints));
-  setActiveColumn("rank");
 }
 
 function sortByPointsGrouped() {
   if (!cachedLeaderboardData) return;
-
   const best = {};
   cachedLeaderboardData.forEach(acc => {
     if (!best[acc.player] || acc.points > best[acc.player].points) {
       best[acc.player] = acc;
     }
   });
-
   renderLeaderboard(Object.values(best).sort((a, b) => b.points - a.points));
-  setActiveColumn("points");
 }
-
-function sortByServer() {
-  if (!cachedLeaderboardData) return;
-
-  renderLeaderboard(
-    [...cachedLeaderboardData]
-      .sort((a, b) => b.currentPoints - a.currentPoints)
-      .sort((a, b) => a.server.localeCompare(b.server))
-  );
-  setActiveColumn("server");
-}
-
-/* ===============================
-   HEADER BINDINGS
-================================ */
-
-const bind = (id, fn) => {
-  const el = document.getElementById(id);
-  if (el) el.onclick = fn;
-};
-
-bind("sortRank", sortByRankAll);
-bind("sortRiot", sortByRankAll);
-bind("sortPoints", sortByPointsGrouped);
-bind("sortPlayer", sortByPointsGrouped);
-bind("sortServer", sortByServer);
 
 /* ===============================
    INITIAL LOAD
@@ -258,7 +216,7 @@ if (document.getElementById("leaderboardBody")) {
 }
 
 /* ===============================
-   REFRESH BUTTON
+   REFRESH
 ================================ */
 
 function refreshLeaderboard() {
@@ -266,27 +224,7 @@ function refreshLeaderboard() {
 }
 
 /* ===============================
-   VISUAL SORT INDICATOR
-================================ */
-
-function setActiveColumn(col) {
-  document.querySelectorAll("th").forEach(th => th.classList.remove("active-sort"));
-  document.querySelectorAll("td").forEach(td => td.classList.remove("active-col"));
-
-  const header = document.querySelector(`th[data-col="${col}"]`);
-  if (!header) return;
-
-  header.classList.add("active-sort");
-  const colIndex = Array.from(header.parentNode.children).indexOf(header);
-
-  document.querySelectorAll("#leaderboardBody tr").forEach(row => {
-    const cell = row.children[colIndex];
-    if (cell) cell.classList.add("active-col");
-  });
-}
-
-/* ===============================
-   ADMIN → BACKEND
+   ADMIN → ADD ACCOUNT (FIXED)
 ================================ */
 
 async function addAccount() {
@@ -305,34 +243,34 @@ async function addAccount() {
     body: JSON.stringify(payload)
   });
 
-  const json = await res.json();
-
-  if (json.success) {
-    refreshLeaderboard();
-    loadAdminTable();
-  } else {
+  if (!res.ok) {
     alert("Failed to add account");
+    return;
   }
+
+  alert("Account added successfully");
+  loadAdminTable();
 }
+
+/* ===============================
+   ADMIN TABLE
+================================ */
 
 async function loadAdminTable() {
   const body = document.getElementById("adminTableBody");
   if (!body) return;
 
-  const data = await fetchAccountsFromBackend();
+  const accounts = await fetchAccounts();
   body.innerHTML = "";
 
-  data.forEach((acc, index) => {
+  accounts.forEach((acc, index) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${acc.player}</td>
       <td>${acc.riotId}</td>
       <td>${acc.server.toUpperCase()}</td>
       <td>${acc.peakRank} ${acc.peakDivision} ${acc.peakLP} LP</td>
-      <td>
-        <button class="delete" onclick="deleteAccount(${index})">Delete Account</button>
-        <button class="delete" onclick="deletePlayer('${acc.player}')">Delete Player</button>
-      </td>
+      <td>—</td>
     `;
     body.appendChild(row);
   });
