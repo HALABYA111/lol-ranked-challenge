@@ -99,29 +99,54 @@ async function fetchLeaderboardFromAPI() {
           acc.peakLP
         );
 
+        // UNRANKED
         if (!r.ranked) {
           return {
             ...acc,
-            tierIcon: "Unranked",
+            tierIcon: "unranked",
             displayRank: "Unranked",
             currentPoints: 0,
             points: -peakPoints
           };
         }
 
-        const normalizedTier =
-          r.tier.charAt(0) + r.tier.slice(1).toLowerCase();
+        // ✅ STRICT TIER → ICON MAP (case-safe)
+        const tierMap = {
+          IRON: "iron",
+          BRONZE: "bronze",
+          SILVER: "silver",
+          GOLD: "gold",
+          PLATINUM: "platinum",
+          EMERALD: "emerald",
+          DIAMOND: "diamond",
+          MASTER: "master",
+          GRANDMASTER: "grandmaster",
+          CHALLENGER: "challenger"
+        };
+
+        const tierKey = tierMap[r.tier];
+
+        // Safety fallback
+        if (!tierKey) {
+          return {
+            ...acc,
+            tierIcon: "unranked",
+            displayRank: "Unranked",
+            currentPoints: 0,
+            points: -peakPoints
+          };
+        }
 
         const currentPoints = rankToPoints(
-          normalizedTier,
+          tierKey.charAt(0).toUpperCase() + tierKey.slice(1),
           r.rank || "",
           r.lp
         );
 
         return {
           ...acc,
-          tierIcon: normalizedTier,
-          displayRank: `${normalizedTier} ${r.rank || ""} ${r.lp} LP`,
+          tierIcon: tierKey,
+          displayRank: `${tierKey.toUpperCase()} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
         };
@@ -134,7 +159,7 @@ async function fetchLeaderboardFromAPI() {
         );
         return {
           ...acc,
-          tierIcon: "Unranked",
+          tierIcon: "unranked",
           displayRank: "Invalid",
           currentPoints: 0,
           points: -peakPoints
@@ -145,6 +170,7 @@ async function fetchLeaderboardFromAPI() {
 
   return cachedLeaderboardData;
 }
+
 
 /* ===============================
    RENDER LEADERBOARD
@@ -338,5 +364,6 @@ function loadAdminTable() {
     body.appendChild(row);
   });
 }
+
 
 
