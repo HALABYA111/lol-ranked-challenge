@@ -161,7 +161,7 @@ function renderLeaderboard(data) {
     const server = acc.server.toLowerCase();
     const uggServer = server === "euw" ? "euw1" : "eun1";
 
-    const iconSrc = `images/${acc.tierIcon}.png`;
+    const iconSrc = `images/${acc.tierIcon.toLowerCase()}.png`;
 
     const row = document.createElement("tr");
     row.innerHTML = `
@@ -338,4 +338,5 @@ function loadAdminTable() {
     body.appendChild(row);
   });
 }
+
 
