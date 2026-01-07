@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="top-bar">
+    <div class="logo">
+      <div class="title demacia-title">2026 Ranked Challenge</div>
+      <div class="subtitle">FOR DEMACIA • made by Halabya111</div>
+    </div>
+
+    <div class="top-actions">
+      <a href="https://loldle.net/classic" target="_blank" class="admin-btn">
+        Do your LoLdle
+      </a>
+      <a href="about.html" class="admin-btn">
+        About
+      </a>
+      <a href="index.html" class="admin-btn">
+        Leaderboard
+      </a>
+    </div>
+  </div>
+
+  <div class="container center">
+
+    <h1>Admin Panel</h1>
+
+    <div id="loginBox" class="card">
+      <input type="text" id="username" placeholder="Username">
+      <input type="password" id="password" placeholder="Password">
+      <button onclick="login()">Login</button>
+    </div>
+
+    <div id="adminPanel" class="hidden">
+
+      <div class="centered-section">
+        <div class="card">
+          <h2>Add Account</h2>
+
+          <input type="text" id="playerName" placeholder="Player Name">
+
+          <h3>Peak Rank</h3>
+          <div class="row">
+            <select id="peakRank"></select>
+            <select id="peakDivision"></select>
+            <input type="number" id="peakLP" placeholder="LP">
+          </div>
+
+          <input type="text" id="riotId" placeholder="Riot ID (Name#TAG)">
+
+          <select id="server">
+            <option value="euw">EUW</option>
+            <option value="eune">EUNE</option>
+          </select>
+
+          <br><br>
+          <button onclick="addAccount()">Add Account</button>
+        </div>
+      </div>
+
+      <hr>
+
+      <h2>Manage Accounts</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Riot ID</th>
+            <th>Server</th>
+            <th>Peak Rank</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminTableBody"></tbody>
+      </table>
+
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

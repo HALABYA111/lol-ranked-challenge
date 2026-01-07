@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LoL Leaderboard</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="top-bar">
+    <div class="logo">
+      <div class="title demacia-title">2026 Ranked Challenge</div>
+      <div class="subtitle">FOR DEMACIA • made by Halabya111</div>
+    </div>
+
+    <div class="top-actions">
+      <a href="https://loldle.net/classic" target="_blank" class="admin-btn">
+        Do your LoLdle
+      </a>
+      <a href="about.html" class="admin-btn">
+        About
+      </a>
+      <a href="admin.html" class="admin-btn">
+        Admin
+      </a>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <div class="header-row">
+      <h1>Leaderboard</h1>
+      <button onclick="refreshLeaderboard()">Refresh</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th id="sortPlayer" data-col="player">Player</th>
+          <th id="sortRiot" data-col="riot">Riot ID</th>
+          <th id="sortServer" data-col="server">Server</th>
+          <th id="sortRank" data-col="rank">Rank</th>
+          <th id="sortPoints" data-col="points">Points</th>
+          <th>More data</th>
+        </tr>
+      </thead>
+      <tbody id="leaderboardBody"></tbody>
+    </table>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
