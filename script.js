@@ -350,8 +350,14 @@ async function loadAdminTable() {
       <td>${acc.server.toUpperCase()}</td>
       <td>${acc.peakrank} ${acc.peakdivision} ${acc.peaklp} LP</td>
       <td>
-        <button class="delete" onclick="deleteAccount(${acc.id})">Delete Account</button>
-        <button class="delete" onclick="deletePlayer('${acc.player}')">Delete Player</button>
+        <button type="button" class="delete"
+          onclick="deleteAccount(${acc.id})">
+          Delete Account
+        </button>
+        <button type="button" class="delete"
+          onclick="deletePlayer('${acc.player}')">
+          Delete Player
+        </button>
       </td>
     `;
     body.appendChild(row);
