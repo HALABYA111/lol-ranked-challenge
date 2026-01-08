@@ -51,7 +51,7 @@ function fillSelects() {
 function login() {
   if (
     document.getElementById("username").value === "admin" &&
-    document.getElementById("password").value === "admin"
+    document.getElementById("password").value === "adminIsHalabya111"
   ) {
     document.getElementById("loginBox").classList.add("hidden");
     document.getElementById("adminPanel").classList.remove("hidden");
@@ -367,3 +367,4 @@ async function loadAdminTable() {
     body.appendChild(row);
   });
 }
+
