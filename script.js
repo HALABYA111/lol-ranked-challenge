@@ -317,19 +317,32 @@ async function addAccount() {
 }
 
 async function deleteAccount(id) {
-  await fetch(`${BACKEND}/accounts/${id}`, { method: "DELETE" });
+  const res = await fetch(`${BACKEND}/accounts?id=${id}`, {
+    method: "DELETE"
+  });
+
+  console.log("Delete account:", id, res.status);
+
   loadAdminTable();
   refreshLeaderboard();
 }
 
+
 async function deletePlayer(player) {
   const accounts = await fetchAccounts();
+
   for (const a of accounts.filter(x => x.player === player)) {
-    await fetch(`${BACKEND}/accounts/${a.id}`, { method: "DELETE" });
+    const res = await fetch(`${BACKEND}/accounts?id=${a.id}`, {
+      method: "DELETE"
+    });
+
+    console.log("Delete account:", a.id, res.status);
   }
+
   loadAdminTable();
   refreshLeaderboard();
 }
+
 
 /* ===============================
    ADMIN TABLE
@@ -363,3 +376,4 @@ async function loadAdminTable() {
     body.appendChild(row);
   });
 }
+
