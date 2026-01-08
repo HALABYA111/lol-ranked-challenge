@@ -115,7 +115,7 @@ async function fetchLeaderboardFromAPI() {
         if (!r.ranked) {
           return {
             ...acc,
-            tierIcon: "Unranked",
+            tierIcon: "unranked",
             displayRank: "Unranked",
             currentPoints: 0,
             points: -peakPoints
@@ -133,7 +133,7 @@ async function fetchLeaderboardFromAPI() {
 
         return {
           ...acc,
-          tierIcon: tier,
+          tierIcon: tier.toLowerCase(), // ✅ ICON FIX
           displayRank: `${tier} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
@@ -147,7 +147,7 @@ async function fetchLeaderboardFromAPI() {
         );
         return {
           ...acc,
-          tierIcon: "Unranked",
+          tierIcon: "unranked",
           displayRank: "Invalid",
           currentPoints: 0,
           points: -peakPoints
