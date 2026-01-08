@@ -63,7 +63,7 @@ function login() {
 }
 
 /* ===============================
-   POINT SYSTEM
+   POINT SYSTEM (MASTER+ FIX)
 ================================ */
 
 function rankToPoints(rank, division, lp) {
@@ -71,6 +71,13 @@ function rankToPoints(rank, division, lp) {
   const tierIndex = ranks.indexOf(rank);
   if (tierIndex === -1) return 0;
 
+  // Master+ uses a continuous LP ladder
+  if (rank === "Master" || rank === "Grandmaster" || rank === "Challenger") {
+    const masterBase = ranks.indexOf("Master") * 400; // 2800
+    return masterBase + lp;
+  }
+
+  // Below Master (normal tiers)
   let points = tierIndex * 400;
 
   if (tierIndex <= 6 && division) {
@@ -133,7 +140,7 @@ async function fetchLeaderboardFromAPI() {
 
         return {
           ...acc,
-          tierIcon: tier.toLowerCase(), // ✅ ICON FIX
+          tierIcon: tier.toLowerCase(),
           displayRank: `${tier} ${r.rank || ""} ${r.lp} LP`,
           currentPoints,
           points: currentPoints - peakPoints
