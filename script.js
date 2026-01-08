@@ -14,27 +14,27 @@ const BACKEND = "https://lol-ranked-backend-production.up.railway.app";
 let cachedLeaderboardData = [];
 
 /* ===============================
-   ADMIN SELECTS (FIXED)
+   ADMIN DROPDOWNS
 ================================ */
 function fillSelects() {
-  const rankSelect = document.getElementById("peakRank");
-  const divSelect = document.getElementById("peakDivision");
+  const rank = document.getElementById("peakRank");
+  const div = document.getElementById("peakDivision");
 
-  if (rankSelect && rankSelect.options.length === 0) {
+  if (rank && rank.options.length === 0) {
     ranks.forEach(r => {
       const o = document.createElement("option");
       o.value = r;
       o.textContent = r;
-      rankSelect.appendChild(o);
+      rank.appendChild(o);
     });
   }
 
-  if (divSelect && divSelect.options.length === 0) {
+  if (div && div.options.length === 0) {
     divisions.forEach(d => {
       const o = document.createElement("option");
       o.value = d;
       o.textContent = d === "" ? "None" : d;
-      divSelect.appendChild(o);
+      div.appendChild(o);
     });
   }
 }
@@ -51,8 +51,6 @@ function login() {
     document.getElementById("adminPanel").classList.remove("hidden");
     fillSelects();
     loadAdminTable();
-  } else {
-    alert("Wrong login");
   }
 }
 
@@ -67,15 +65,15 @@ function rankToPoints(rank, division, lp) {
   let points = tierIndex * 400;
 
   if (tierIndex <= 6 && division) {
-    const divPts = { IV: 0, III: 100, II: 200, I: 300 };
-    points += divPts[division] ?? 0;
+    const map = { IV: 0, III: 100, II: 200, I: 300 };
+    points += map[division] ?? 0;
   }
 
   return points + lp;
 }
 
 /* ===============================
-   FETCH ACCOUNTS (BACKEND ONLY)
+   BACKEND FETCH HELPERS
 ================================ */
 async function fetchAccounts() {
   const res = await fetch(`${BACKEND}/accounts`);
@@ -84,7 +82,7 @@ async function fetchAccounts() {
 }
 
 /* ===============================
-   LEADERBOARD FETCH (FIXED)
+   LEADERBOARD DATA (API + RIOT)
 ================================ */
 async function fetchLeaderboardFromAPI() {
   const accounts = await fetchAccounts();
@@ -97,7 +95,7 @@ async function fetchLeaderboardFromAPI() {
         );
         const r = await res.json();
 
-        const peakPoints = rankToPoints(
+        const peak = rankToPoints(
           acc.peakrank,
           acc.peakdivision,
           acc.peaklp
@@ -109,39 +107,34 @@ async function fetchLeaderboardFromAPI() {
             tierIcon: "unranked",
             displayRank: "Unranked",
             currentPoints: 0,
-            points: -peakPoints
+            points: -peak
           };
         }
 
         const tier =
           r.tier.charAt(0) + r.tier.slice(1).toLowerCase();
 
-        const currentPoints = rankToPoints(tier, r.rank, r.lp);
+        const current = rankToPoints(tier, r.rank, r.lp);
 
         return {
           ...acc,
           tierIcon: tier.toLowerCase(),
           displayRank: `${tier} ${r.rank} ${r.lp} LP`,
-          currentPoints,
-          points: currentPoints - peakPoints
+          currentPoints: current,
+          points: current - peak
         };
+
       } catch {
-        return {
-          ...acc,
-          tierIcon: "unranked",
-          displayRank: "Invalid",
-          currentPoints: 0,
-          points: 0
-        };
+        return null;
       }
     })
   );
 
-  return cachedLeaderboardData;
+  cachedLeaderboardData = cachedLeaderboardData.filter(Boolean);
 }
 
 /* ===============================
-   RENDER LEADERBOARD (FIXED)
+   RENDER LEADERBOARD
 ================================ */
 function renderLeaderboard(data) {
   const body = document.getElementById("leaderboardBody");
@@ -164,10 +157,8 @@ function renderLeaderboard(data) {
         </td>
         <td>${acc.points}</td>
         <td class="link-group">
-          <a class="link-btn" target="_blank"
-            href="https://www.op.gg/summoners/${acc.server}/${riotName}">
-            OP.GG
-          </a>
+          <a class="link-btn" target="_blank" href="https://www.op.gg/summoners/${acc.server}/${riotName}">OP.GG</a>
+          <a class="link-btn" target="_blank" href="https://u.gg/lol/profile/${acc.server === "euw" ? "euw1" : "eun1"}/${riotName}/overview">U.GG</a>
         </td>
       </tr>
     `;
@@ -175,7 +166,7 @@ function renderLeaderboard(data) {
 }
 
 /* ===============================
-   SORTING (UNCHANGED)
+   SORTING
 ================================ */
 function sortByRankAll() {
   renderLeaderboard(
@@ -185,12 +176,12 @@ function sortByRankAll() {
 
 function sortByPointsGrouped() {
   const best = {};
-  cachedLeaderboardData.forEach(acc => {
-    if (!best[acc.player] || acc.points > best[acc.player].points) {
-      best[acc.player] = acc;
+  cachedLeaderboardData.forEach(a => {
+    if (!best[a.player] || a.points > best[a.player].points) {
+      best[a.player] = a;
     }
   });
-  renderLeaderboard(Object.values(best));
+  renderLeaderboard(Object.values(best).sort((a, b) => b.points - a.points));
 }
 
 function sortByServer() {
@@ -202,58 +193,50 @@ function sortByServer() {
 }
 
 /* ===============================
-   INITIAL LOAD (FIXED)
+   INITIAL LOAD
 ================================ */
 if (document.getElementById("leaderboardBody")) {
   fetchLeaderboardFromAPI().then(sortByRankAll);
 }
 
 /* ===============================
-   ADMIN — ADD ACCOUNT (UNCHANGED)
+   ADMIN ACTIONS
 ================================ */
 async function addAccount() {
-  const payload = {
-    player: playerName.value,
-    riotId: riotId.value,
-    server: server.value,
-    peakRank: peakRank.value,
-    peakDivision: peakDivision.value,
-    peakLP: Number(peakLP.value || 0)
-  };
-
-  const res = await fetch(`${BACKEND}/accounts`, {
+  await fetch(`${BACKEND}/accounts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({
+      player: playerName.value,
+      riotId: riotId.value,
+      server: server.value,
+      peakRank: peakRank.value,
+      peakDivision: peakDivision.value,
+      peakLP: Number(peakLP.value || 0)
+    })
   });
 
-  const json = await res.json();
-  if (!json.success) alert("Failed to add account");
-
   loadAdminTable();
+  fetchLeaderboardFromAPI().then(sortByRankAll);
 }
 
-/* ===============================
-   DELETE (FIXED — NO POPUPS)
-================================ */
 async function deleteAccount(id) {
   await fetch(`${BACKEND}/accounts/${id}`, { method: "DELETE" });
   loadAdminTable();
+  fetchLeaderboardFromAPI().then(sortByRankAll);
 }
 
 async function deletePlayer(player) {
   const accounts = await fetchAccounts();
-  const targets = accounts.filter(a => a.player === player);
-
-  for (const acc of targets) {
-    await fetch(`${BACKEND}/accounts/${acc.id}`, { method: "DELETE" });
+  for (const a of accounts.filter(x => x.player === player)) {
+    await fetch(`${BACKEND}/accounts/${a.id}`, { method: "DELETE" });
   }
-
   loadAdminTable();
+  fetchLeaderboardFromAPI().then(sortByRankAll);
 }
 
 /* ===============================
-   ADMIN TABLE (FIXED)
+   ADMIN TABLE
 ================================ */
 async function loadAdminTable() {
   const body = document.getElementById("adminTableBody");
